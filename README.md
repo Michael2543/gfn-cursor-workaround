@@ -1,50 +1,59 @@
-# gfn-cursor-workaround
+# GeForce NOW Cursor Fix for Linux
 
-Workaround for a mouse cursor bug in the GeForce NOW Flatpak on Linux (X11): software-rendered color cursors are sometimes displayed incorrectly there (e.g. shown as a plain arrow instead of the actual icon, or with wrong pixels). This project loads a small shim library (`cursor_arrow.c`) via `LD_PRELOAD` that intercepts `SDL_CreateColorCursor` and instead creates the cursor as a native Xcursor ARGB image through X11.
+A local workaround for the official `com.nvidia.geforcenow` Flatpak. On some
+X11/XWayland desktops, the app turns the streamed game cursor into a two-color
+shape. This launcher passes the intact cursor bitmap directly to Xcursor, so
+its texture and transparency remain visible.
 
 ## Download
 
-> **Recommended:** Instead of cloning the repository and building it yourself, just download the ready-made archive:
+> **Recommended:** Instead of cloning the repository, just download the ready-made archive:
 >
 > [`gfn-cursor-fix-0.1.0-linux-x86_64.tar.gz`](gfn-cursor-fix-0.1.0-linux-x86_64.tar.gz)
 
-Extract the archive and run `install.sh` to install the fix and create an application menu entry, or run `launch.sh` directly – the shared library is rebuilt automatically if needed.
+Extract the archive and run `install.sh` to create an application menu entry, or run `launch.sh` directly – the shared library is rebuilt automatically if needed.
+
 
 ## Requirements
 
-- GeForce NOW as a Flatpak (`com.nvidia.geforcenow`), installed for `--user` or `--system`
-- An X11 session
-- `cc` (GCC/Clang) plus the development packages for `libX11`, `libXcursor` and `SDL2`
+- Linux x86_64 and the official GeForce NOW Flatpak
+- X11 or XWayland with ARGB cursor support
+- `libXcursor.so.1` and `libX11.so.6` in the Flatpak runtime
 
-## Usage
+Tested with GeForce NOW 2.0.89.141 (bundled SDL 2.32.10) on Hyprland/XWayland.
+The workaround is not specific to Omarchy. Native Wayland and other client
+versions are untested. A GeForce NOW update may require a new build.
 
-### Install (recommended)
+## Run without installing
 
-```sh
-./install.sh
-```
-
-This installs the shim library and `launch.sh` to `$XDG_DATA_HOME/gfn-cursor-fix` (defaults to `~/.local/share/gfn-cursor-fix`) and creates a `.desktop` file, adding a **"GeForce NOW (Cursor Fix)"** entry to your application menu. Run `uninstall.sh` to remove it again.
-
-### Run directly
+Extract the archive somewhere under your home directory, then run:
 
 ```sh
 ./launch.sh
 ```
 
-This builds `libgfn_cursor_arrow.so` if needed, starts GeForce NOW via Flatpak, and sets `LD_PRELOAD` as well as `GFN_CURSOR_MODE` for the client process.
-
-The cursor mode can optionally be controlled via an environment variable:
+## Add an application-menu entry
 
 ```sh
-GFN_CURSOR_MODE=arrow ./launch.sh   # disables the Xcursor workaround, uses the default arrow
-GFN_CURSOR_MODE=xcursor ./launch.sh # default: native ARGB cursor via Xcursor
+./install.sh
 ```
 
-## How it works
+Start **GeForce NOW (Cursor Fix)** from your application menu. `./uninstall.sh`
+removes this menu entry and the installed copy. The original GeForce NOW
+Flatpak is never modified. Starting it normally bypasses the workaround.
 
-`cursor_arrow.c` overrides `SDL_CreateColorCursor` via symbol interposition (`LD_PRELOAD`). Instead of using the color cursor rendered by the GeForce NOW client, the cursor image is converted into a native `XcursorImage` and set as the system cursor via Xlib/Xcursor. If a condition isn't met (e.g. no X11, no ARGB support, `GFN_CURSOR_MODE=arrow`), the code falls back to the original behavior.
+If the game cursor still fails, `GFN_CURSOR_MODE=arrow ./launch.sh` shows a
+plain arrow as a fallback.
 
-## License
+## Build from source
 
-No license specified.
+The prebuilt library is included. Rebuilding requires a C compiler and the
+SDL2, Xcursor, and X11 development headers:
+
+```sh
+cc -shared -fPIC -O2 -Wall -Wextra -o libgfn_cursor_arrow.so cursor_arrow.c -ldl -lXcursor -lX11
+```
+
+The launcher starts `/app/cef/GeForceNOW` directly because NVIDIA's wrapper
+clears `LD_PRELOAD`. The wrapper's built-in self-update does not run through
+this launcher; update the Flatpak normally.
